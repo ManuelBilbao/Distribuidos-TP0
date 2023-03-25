@@ -17,3 +17,9 @@ Ahora sí voy a encarar el problema de un modo más general. En este caso lo que
 El resultado se imprime por salida estándar. De esta manera, se puede redirigir a un archivo o utilizar `docker compose` directamente, por ejemplo, haciendo `./build_docker_compose.sh 3 | docker compose -f - up`.
 
 Para realizar este ejercicio se podría haber utilizado también la opción `replica` de `deploy`, pero esto implica correr los contenedores en modo `docker swarm`, lo cual considero que excede el proyecto y no es necesaria la complejidad que conlleva.
+
+### Ejercicio 2
+
+> Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera un nuevo build de las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida afuera de la imagen (hint: `docker volumes`).
+
+Para este ejercicio simplemente agregué a las declaraciones de servidor y clientes un volumen con el archivo de configuración correspondiente. De esta forma, no es necesario recrear las imágenes cada vez que hay un cambio, aunque esto no implica que una modificación no provoque que la imagen vaya a cambiar. Para evitar que esto pase, se podría crear un archivo `.dockerignore` en los directorios de servidor y cliente, que contengan el nombre del archivo de configuración correspondiente a cada uno. Decidí no hacer esto porque si se quiere crear la imagen para compartir por algún medio, en lugar de utilizar `docker compose`, es necesario contar con esos archivos.
