@@ -10,6 +10,8 @@ services:
       - LOGGING_LEVEL=DEBUG
     networks:
       - testing_net
+    volumes:
+      - ${PWD}/server/config.ini:/config.ini
 
 # CLIENTS
 

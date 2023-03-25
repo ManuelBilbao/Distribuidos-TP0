@@ -9,3 +9,5 @@
       - testing_net
     depends_on:
       - server
+    volumes:
+      - ${PWD}/client/config.yaml:/config.yaml
