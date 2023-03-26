@@ -37,3 +37,15 @@ Para resolver este ejercicio nuevamente creé un _script_ en Bash que crea y lan
 Antes de continuar, decidí que lo mejor iba a ser reescribir el cliente en Python, ya que en mi caso sería más sencillo de comprender y modificar para resolver los ejercicios que siguen.
 
 Una vez hecho eso, modfiqué tanto el cliente como el servidor para que se dispare una función al recibir un SIGTERM. Esta función se ejecutará instantáneamente, interrumpiendo el resto del programa, y se ocupará de cerrar la conexión del socket antes de finalizar.
+
+## Parte 2: Repaso de Comunicaciones
+
+### Ejercicio 5
+
+> Modificar la lógica de negocio tanto de los clientes como del servidor para nuestro nuevo caso de uso. [...]
+
+Para este ejercicio pensé que una forma sencilla y confiable de transmitir los datos sería serializarlos en forma de JSON. Esto me permite recuperar fácilmente un objeto del otro lado de la comunicación. En principio, todos los datos de la apuesta se encuentran en la raíz del objeto, pero para el siguiente ejercicio será muy fácil modificarlo para que soporte varias apuestas.
+
+El protocolo que utilizo para la comunicación es un número codificado en 2 bytes, que indica el tamaño del resto del mensaje, seguido de la serialización del JSON codificada en UTF-8. Con este protocolo logro evitar los _short reads_ ya que siempre sé exactamente cuántos bytes tengo que leer.
+
+También, para evitar los _short writes_, remplacé los `send` por `sendall`, que se encarga de reintentar el envío en caso de ser necesario o devolver un error cuando no sea posible.
