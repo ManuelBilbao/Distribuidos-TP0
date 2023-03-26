@@ -45,6 +45,11 @@ class Server:
 
             msg = client_sock.recv(2)
             length = int.from_bytes(msg, "little", signed=False)
+            if length > 8190:
+                logging.warning(
+                    'action: receive_message | result: fail | '
+                    'error: Message exceeded maximum length'
+                )
 
             msg = client_sock.recv(length).rstrip().decode("utf-8")
             data = json.loads(msg)
