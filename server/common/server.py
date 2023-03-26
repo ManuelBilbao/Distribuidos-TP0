@@ -41,7 +41,6 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
             msg = client_sock.recv(8192).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
             logging.info(
@@ -63,6 +62,11 @@ class Server:
                 "number": bet.number
             }
             client_sock.sendall(json.dumps(response).encode("utf-8"))
+        except json.decoder.JSONDecodeError:
+            logging.error(
+                "action: receive_mesage | result: fail | "
+                "error: Malformed message or short read"
+            )
         except Exception as e:
             logging.error(
                 f"action: receive_message | result: fail | error: {e}"

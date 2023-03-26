@@ -89,6 +89,12 @@ class Client:
                         f'dni: {data["document"]} | numero: {data["number"]} |'
                         f' error: {data["error"]}'
                     )
+            except json.decoder.JSONDecodeError:
+                logging.error(
+                    'action: receive_mesage | result: fail | '
+                    f'client_id: {self.config.id} | '
+                    'error: Malformed message or short read'
+                )
             except Exception as e:
                 logging.error(
                     f'action: receive_message | result: fail | '
