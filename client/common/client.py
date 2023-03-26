@@ -1,4 +1,5 @@
 import logging
+import signal
 import socket
 import sys
 import time
@@ -19,6 +20,15 @@ class Client:
     def __init__(self, config: ClientConfig):
         self.config = config
         self.conn = None
+        signal.signal(signal.SIGTERM, self.exit)
+
+    def exit(self, *args):
+        logging.info(
+            f'[CLIENT {self.config.id}] Received SIGTERM. '
+            'Stopping gracefully...'
+        )
+        self.conn.close()
+        sys.exit(0)
 
     # create_client_socket Initializes client socket. In case of
     # failure, error is printed in stdout/stderr and exit 1 is returned
