@@ -29,3 +29,11 @@ Para este ejercicio simplemente agregué a las declaraciones de servidor y clien
 > Crear un script que permita verificar el correcto funcionamiento del servidor utilizando el comando `netcat` para interactuar con el mismo. Dado que el servidor es un EchoServer, se debe enviar un mensaje al servidor y esperar recibir el mismo mensaje enviado. Netcat no debe ser instalado en la máquina _host_ y no se puede exponer puertos del servidor para realizar la comunicación (hint: `docker network`).
 
 Para resolver este ejercicio nuevamente creé un _script_ en Bash que crea y lanza un contenedor muy ligero, basado en Alpine, que contiene el ejecutable de `netcat`. Este contenedor lo agrego a la red donde se encuentra el servidor (que debe estar previamente iniciado) utilizando el flag `--network`. Cuando el contenedor inicia, intenta conectarse al servidor y enviarle un número aleatorio, que luego el _script_ va a comparar con la respuesta en busca de coincidencia.
+
+### Ejercicio 4
+
+> Modificar servidor y cliente para que ambos sistemas terminen de forma _graceful_ al recibir la signal SIGTERM. Terminar la aplicación de forma _graceful_ implica que todos los _file descriptors_ (entre los que se encuentran archivos, sockets, threads y procesos) deben cerrarse correctamente antes que el thread de la aplicación principal muera. Loguear mensajes en el cierre de cada recurso (hint: Verificar que hace el flag `-t` utilizado en el comando `docker compose down`).
+
+Antes de continuar, decidí que lo mejor iba a ser reescribir el cliente en Python, ya que en mi caso sería más sencillo de comprender y modificar para resolver los ejercicios que siguen.
+
+Una vez hecho eso, modfiqué tanto el cliente como el servidor para que se dispare una función al recibir un SIGTERM. Esta función se ejecutará instantáneamente, interrumpiendo el resto del programa, y se ocupará de cerrar la conexión del socket antes de finalizar.
