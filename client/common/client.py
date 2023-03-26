@@ -1,3 +1,4 @@
+import json
 import logging
 import signal
 import socket
@@ -47,9 +48,6 @@ class Client:
     # start_client_loop Send messages to the client until
     # some time threshold is met
     def start_client_loop(self):
-        # Autoincremental msg_id to identify every message sent
-        msg_id = 1
-
         # Send messages while the loop_lapse threshold has not been surpassed
         start_time = time.monotonic()
         past_time = 0
@@ -59,9 +57,15 @@ class Client:
 
             # Send a message to the server
             try:
-                self.conn.sendall(
-                    f'[CLIENT {self.config.id}] Message N°{msg_id}\n'.encode()
-                )
+                msg = {
+                    "agency": 1,
+                    "first_name": "Santiago Lionel",
+                    "last_name": "Lorca",
+                    "document": 30904465,
+                    "birthdate": "1993-03-17",
+                    "number": 7574
+                }
+                self.conn.sendall(json.dumps(msg).encode())
             except Exception as e:
                 logging.error(
                     f'action: send_message | result: fail | '
@@ -71,7 +75,19 @@ class Client:
 
             # Receive a message from the server
             try:
-                msg = self.conn.recv(4096).rstrip().decode("utf-8")
+                msg = self.conn.recv(8192).rstrip().decode("utf-8")
+                data = json.loads(msg)
+                if data["success"]:
+                    logging.info(
+                        'action: apuesta_enviada | result: success | '
+                        f'dni: {data["document"]} | numero: {data["number"]}'
+                    )
+                else:
+                    logging.warning(
+                        'action: apuesta_enviada | result: fail | '
+                        f'dni: {data["document"]} | numero: {data["number"]} |'
+                        f' error: {data["error"]}'
+                    )
             except Exception as e:
                 logging.error(
                     f'action: receive_message | result: fail | '
