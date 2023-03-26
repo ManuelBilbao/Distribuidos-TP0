@@ -79,8 +79,17 @@ class Client:
 
             # Receive a message from the server
             try:
-                msg = self.conn.recv(8192).rstrip().decode("utf-8")
+                msg = self.conn.recv(2)
+                length = int.from_bytes(msg, "little", signed=False)
+                if length > 8190:
+                    logging.warning(
+                        'action: receive_message | result: fail | '
+                        'error: Message exceeded maximum length'
+                    )
+
+                msg = self.conn.recv(length).rstrip().decode("utf-8")
                 data = json.loads(msg)
+
                 if data["success"]:
                     logging.info(
                         'action: apuesta_enviada | result: success | '
@@ -94,7 +103,7 @@ class Client:
                     )
             except json.decoder.JSONDecodeError:
                 logging.error(
-                    'action: receive_mesage | result: fail | '
+                    'action: receive_message | result: fail | '
                     f'client_id: {self.config.id} | '
                     'error: Malformed message'
                 )

@@ -72,10 +72,13 @@ class Server:
                 "document": bet.document,
                 "number": bet.number
             }
-            client_sock.sendall(json.dumps(response).encode("utf-8"))
+            encoded_response = json.dumps(response).encode("utf-8")
+            encoded_size = len(encoded_response).to_bytes(2, "little",
+                                                          signed=False)
+            client_sock.sendall(encoded_size + encoded_response)
         except json.decoder.JSONDecodeError:
             logging.error(
-                "action: receive_mesage | result: fail | "
+                "action: receive_message | result: fail | "
                 "error: Malformed message"
             )
         except Exception as e:
