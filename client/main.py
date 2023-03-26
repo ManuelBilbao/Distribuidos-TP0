@@ -68,7 +68,8 @@ def init_config() -> ClientConfig:
     if not isinstance(numeric_level, int):
         raise ValueError(f'Invalid log level: {log_level}')
     logging.basicConfig(
-        format='%(asctime)s %(levelname)s %(message)s',
+        format='%(asctime)s %(levelname)s\t%(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
         level=numeric_level
     )
 
