@@ -20,6 +20,7 @@ def parse_time(time: str) -> int:
 def init_config() -> ClientConfig:
     # Set client ID
     id = os.environ['CLI_ID']
+    log_level = None
 
     try:
         config_file = open('./config.yaml')
@@ -46,15 +47,15 @@ def init_config() -> ClientConfig:
 
         # Set loop lapse
         try:
-            loop_lapse = int(os.environ.get('CLI_LOOP_LAPSE'))
-        except TypeError:
+            loop_lapse = parse_time(os.environ.get('CLI_LOOP_LAPSE'))
+        except Exception:
             logging.error('Could not parse CLI_LOOP_LAPSE env var as int.')
             raise
 
         # Set loop period
         try:
-            loop_period = int(os.environ.get('CLI_LOOP_PERIOD'))
-        except TypeError:
+            loop_period = parse_time(os.environ.get('CLI_LOOP_PERIOD'))
+        except Exception:
             logging.error('Could not parse CLI_LOOP_PERIOD env var as int.')
             raise
 
@@ -77,7 +78,8 @@ def init_config() -> ClientConfig:
 def main() -> None:
     try:
         config = init_config()
-    except Exception:
+    except Exception as e:
+        logging.error(e)
         return
 
     # Print program config with debugging purposes
