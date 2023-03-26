@@ -1,7 +1,7 @@
   client$CLI_ID:
     container_name: client$CLI_ID
     image: client:latest
-    entrypoint: /client
+    entrypoint: python /client/main.py
     environment:
       - CLI_ID=$CLI_ID
       - CLI_LOG_LEVEL=DEBUG
