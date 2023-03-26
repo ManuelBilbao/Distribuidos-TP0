@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import signal
 import socket
 import sys
@@ -58,14 +59,14 @@ class Client:
             # Send a message to the server
             try:
                 msg = {
-                    "agency": 1,
-                    "first_name": "Santiago Lionel",
-                    "last_name": "Lorca",
-                    "document": 30904465,
-                    "birthdate": "1993-03-17",
-                    "number": 7574
+                    "agency": self.config.id,
+                    "first_name": os.environ["NOMBRE"],
+                    "last_name": os.environ["APELLIDO"],
+                    "document": os.environ["DOCUMENTO"],
+                    "birthdate": os.environ["NACIMIENTO"],
+                    "number": os.environ["NUMERO"]
                 }
-                self.conn.sendall(json.dumps(msg).encode())
+                self.conn.sendall(json.dumps(msg).encode("utf-8"))
             except Exception as e:
                 logging.error(
                     f'action: send_message | result: fail | '

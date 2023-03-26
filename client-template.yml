@@ -5,6 +5,11 @@
     environment:
       - CLI_ID=$CLI_ID
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Manuel Iñaki
+      - APELLIDO=Bilbao
+      - DOCUMENTO=102732
+      - NACIMIENTO=1998-09-01
+      - NUMERO=7574
     networks:
       - testing_net
     depends_on:
