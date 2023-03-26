@@ -71,9 +71,7 @@ class Client:
 
             # Receive a message from the server
             try:
-                msg = self.conn.recv(4096).decode()
-                if msg[-1] == '\n':
-                    msg = msg[:-1]
+                msg = self.conn.recv(4096).rstrip().decode("utf-8")
             except Exception as e:
                 logging.error(
                     f'action: receive_message | result: fail | '
