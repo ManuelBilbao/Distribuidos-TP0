@@ -41,16 +41,22 @@ class Server:
         client socket will also be closed
         """
         try:
-            msg = client_sock.recv(8192).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
+
+            msg = client_sock.recv(2)
+            length = int.from_bytes(msg, "little", signed=False)
+
+            msg = client_sock.recv(length).rstrip().decode("utf-8")
+            data = json.loads(msg)
+
             logging.info(
                 'action: receive_message | result: success | '
                 f'ip: {addr[0]} | msg: {msg}'
             )
 
-            data = json.loads(msg)
             bet = Bet(**data)
             store_bets([bet])
+
             logging.info(
                 'action: apuesta_almacenada | result: success | '
                 f'dni: {bet.document} | numero: {bet.number}'
@@ -65,7 +71,7 @@ class Server:
         except json.decoder.JSONDecodeError:
             logging.error(
                 "action: receive_mesage | result: fail | "
-                "error: Malformed message or short read"
+                "error: Malformed message"
             )
         except Exception as e:
             logging.error(

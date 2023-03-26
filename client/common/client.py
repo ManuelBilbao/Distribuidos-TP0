@@ -66,7 +66,10 @@ class Client:
                     "birthdate": os.environ["NACIMIENTO"],
                     "number": os.environ["NUMERO"]
                 }
-                self.conn.sendall(json.dumps(msg).encode("utf-8"))
+                encoded_msg = json.dumps(msg).encode("utf-8")
+                encoded_size = len(encoded_msg).to_bytes(2, "little",
+                                                         signed=False)
+                self.conn.sendall(encoded_size + encoded_msg)
             except Exception as e:
                 logging.error(
                     f'action: send_message | result: fail | '
@@ -93,7 +96,7 @@ class Client:
                 logging.error(
                     'action: receive_mesage | result: fail | '
                     f'client_id: {self.config.id} | '
-                    'error: Malformed message or short read'
+                    'error: Malformed message'
                 )
             except Exception as e:
                 logging.error(
