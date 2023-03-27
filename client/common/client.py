@@ -5,7 +5,6 @@ import os
 import signal
 import socket
 import sys
-import time
 
 
 # ClientConfig Configuration used by the client
@@ -50,38 +49,36 @@ class Client:
     # start_client_loop Send messages to the client until
     # some time threshold is met
     def start_client_loop(self):
-        # Send messages while the loop_lapse threshold has not been surpassed
-        start_time = time.monotonic()
-        past_time = 0
-        while past_time < self.config.loop_lapse:
+        try:
+            file = open(f"/data/agency-{self.config.id}.csv")
+            reader = csv.reader(file, delimiter=',')
+
+            bets = [{
+                "first_name": row[0],
+                "last_name": row[1],
+                "document": row[2],
+                "birthdate": row[3],
+                "number": row[4]
+            } for row in reader]
+        except Exception as e:
+            logging.error(
+                f'action: read_file | result: fail | '
+                f'client_id: {self.config.id} | error: {e}'
+            )
+            return
+        finally:
+            file.close()
+
+        bets_sent = 0
+        while bets_sent < len(bets):
             # Create the connection to the server
             self.create_client_socket()
-
-            try:
-                file = open(f"/data/agency-{self.config.id}.csv")
-                reader = csv.reader(file, delimiter=',')
-
-                bets = [{
-                    "first_name": row[0],
-                    "last_name": row[1],
-                    "document": row[2],
-                    "birthdate": row[3],
-                    "number": row[4]
-                } for row in reader]
-            except Exception as e:
-                logging.error(
-                    f'action: read_file | result: fail | '
-                    f'client_id: {self.config.id} | error: {e}'
-                )
-                break
-            finally:
-                file.close()
 
             # Send a message to the server
             try:
                 msg = {
                     "agency": self.config.id,
-                    "bets": bets[:4]
+                    "bets": bets[bets_sent:bets_sent+5]
                 }
                 encoded_msg = json.dumps(msg).encode("utf-8")
                 encoded_size = len(encoded_msg).to_bytes(2, "little",
@@ -112,6 +109,7 @@ class Client:
                         'action: apuesta_enviada | result: success | '
                         f'quantity: {data["quantity"]}'
                     )
+                    bets_sent += 5
                 else:
                     logging.error(
                         'action: apuesta_enviada | result: fail | '
@@ -135,12 +133,6 @@ class Client:
                 f'action: receive_message | result: success | '
                 f'client_id: {self.config.id} | msg: {msg}'
             )
-
-            # Wait a time between sending one message and the next one
-            time.sleep(self.config.loop_period)
-
-            # Update the past time
-            past_time = time.monotonic() - start_time
 
             # Close the connection to the server
             self.conn.close()
