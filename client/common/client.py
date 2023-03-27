@@ -60,11 +60,13 @@ class Client:
             try:
                 msg = {
                     "agency": self.config.id,
-                    "first_name": os.environ["NOMBRE"],
-                    "last_name": os.environ["APELLIDO"],
-                    "document": os.environ["DOCUMENTO"],
-                    "birthdate": os.environ["NACIMIENTO"],
-                    "number": os.environ["NUMERO"]
+                    "bets": [{
+                        "first_name": os.environ["NOMBRE"],
+                        "last_name": os.environ["APELLIDO"],
+                        "document": os.environ["DOCUMENTO"],
+                        "birthdate": os.environ["NACIMIENTO"],
+                        "number": os.environ["NUMERO"]
+                    }]
                 }
                 encoded_msg = json.dumps(msg).encode("utf-8")
                 encoded_size = len(encoded_msg).to_bytes(2, "little",

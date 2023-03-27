@@ -59,8 +59,9 @@ class Server:
                 f'ip: {addr[0]} | msg: {msg}'
             )
 
-            bet = Bet(**data)
-            store_bets([bet])
+            bets = [Bet(data["agency"], **bet) for bet in data["bets"]]
+            bet = bets[0]
+            store_bets(bets)
 
             logging.info(
                 'action: apuesta_almacenada | result: success | '
