@@ -1,3 +1,4 @@
+import csv
 import json
 import logging
 import os
@@ -56,17 +57,31 @@ class Client:
             # Create the connection to the server
             self.create_client_socket()
 
+            try:
+                file = open(f"/data/agency-{self.config.id}.csv")
+                reader = csv.reader(file, delimiter=',')
+
+                bets = [{
+                    "first_name": row[0],
+                    "last_name": row[1],
+                    "document": row[2],
+                    "birthdate": row[3],
+                    "number": row[4]
+                } for row in reader]
+            except Exception as e:
+                logging.error(
+                    f'action: read_file | result: fail | '
+                    f'client_id: {self.config.id} | error: {e}'
+                )
+                break
+            finally:
+                file.close()
+
             # Send a message to the server
             try:
                 msg = {
                     "agency": self.config.id,
-                    "bets": [{
-                        "first_name": os.environ["NOMBRE"],
-                        "last_name": os.environ["APELLIDO"],
-                        "document": os.environ["DOCUMENTO"],
-                        "birthdate": os.environ["NACIMIENTO"],
-                        "number": os.environ["NUMERO"]
-                    }]
+                    "bets": bets[:4]
                 }
                 encoded_msg = json.dumps(msg).encode("utf-8")
                 encoded_size = len(encoded_msg).to_bytes(2, "little",
