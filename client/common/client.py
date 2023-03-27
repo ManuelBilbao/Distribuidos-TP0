@@ -95,12 +95,11 @@ class Client:
                 if data["success"]:
                     logging.info(
                         'action: apuesta_enviada | result: success | '
-                        f'dni: {data["document"]} | numero: {data["number"]}'
+                        f'quantity: {data["quantity"]}'
                     )
                 else:
-                    logging.warning(
+                    logging.error(
                         'action: apuesta_enviada | result: fail | '
-                        f'dni: {data["document"]} | numero: {data["number"]} |'
                         f' error: {data["error"]}'
                     )
             except json.decoder.JSONDecodeError:
