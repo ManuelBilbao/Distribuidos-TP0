@@ -1,8 +1,6 @@
 # id: 1
 server:
   address: "server:12345"
-loop:
-  lapse: "0m20s"
-  period: "5s"
+chunk_size: 10
 log:
   level: "info"

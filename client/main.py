@@ -28,8 +28,7 @@ def init_config() -> ClientConfig:
         config_file.close()
 
         server_address = config["server"]["address"]
-        loop_lapse = parse_time(config["loop"]["lapse"])
-        loop_period = parse_time(config["loop"]["period"])
+        chunk_size = int(config["chunk_size"])
 
         log_level = config["log"]["level"]
     except Exception:
@@ -45,21 +44,14 @@ def init_config() -> ClientConfig:
             logging.error('Could not find the server address')
             raise
 
-        # Set loop lapse
+        # Set chunk size
         try:
-            loop_lapse = parse_time(os.environ.get('CLI_LOOP_LAPSE'))
+            chunk_size = int(os.environ.get('CLI_CHUNK_SIZE'))
         except Exception:
-            logging.error('Could not parse CLI_LOOP_LAPSE env var as int.')
+            logging.error('Could not parse CLI_CHUNK_SIZE env var as int.')
             raise
 
-        # Set loop period
-        try:
-            loop_period = parse_time(os.environ.get('CLI_LOOP_PERIOD'))
-        except Exception:
-            logging.error('Could not parse CLI_LOOP_PERIOD env var as int.')
-            raise
-
-    config = ClientConfig(id, server_address, loop_lapse, loop_period)
+    config = ClientConfig(id, server_address, chunk_size)
 
     # Set log level
     if not log_level:
@@ -88,8 +80,7 @@ def main() -> None:
     logging.info(
         f'action: config | result: success | client_id: {config.id} | '
         f'server_address: {config.server_address} | '
-        f'loop_lapse: {config.loop_lapse} | '
-        f'loop_period: {config.loop_period} | log_level: {log_level}'
+        f'chunk_size: {config.chunk_size} | log_level: {log_level}'
     )
 
     client = Client(config)

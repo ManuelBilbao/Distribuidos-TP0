@@ -1,7 +1,6 @@
 import csv
 import json
 import logging
-import os
 import signal
 import socket
 import sys
@@ -9,12 +8,10 @@ import sys
 
 # ClientConfig Configuration used by the client
 class ClientConfig:
-    def __init__(self, id: str, server_address: str,
-                 loop_lapse: int, loop_period: int):
+    def __init__(self, id: str, server_address: str, chunk_size: int):
         self.id = id
         self.server_address = server_address
-        self.loop_lapse = loop_lapse
-        self.loop_period = loop_period
+        self.chunk_size = chunk_size
 
 
 # Client Entity that encapsulates how
@@ -78,7 +75,7 @@ class Client:
             try:
                 msg = {
                     "agency": self.config.id,
-                    "bets": bets[bets_sent:bets_sent+5]
+                    "bets": bets[bets_sent:bets_sent+self.config.chunk_size]
                 }
                 encoded_msg = json.dumps(msg).encode("utf-8")
                 encoded_size = len(encoded_msg).to_bytes(2, "little",
@@ -109,7 +106,7 @@ class Client:
                         'action: apuesta_enviada | result: success | '
                         f'quantity: {data["quantity"]}'
                     )
-                    bets_sent += 5
+                    bets_sent += self.config.chunk_size
                 else:
                     logging.error(
                         'action: apuesta_enviada | result: fail | '
