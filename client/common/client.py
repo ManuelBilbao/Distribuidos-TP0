@@ -67,7 +67,8 @@ class Client:
             file.close()
 
         bets_sent = 0
-        while bets_sent < len(bets):
+        retries = 0
+        while bets_sent < len(bets) and retries < 3:
             # Create the connection to the server
             self.create_client_socket()
 
@@ -108,17 +109,25 @@ class Client:
                         f'quantity: {data["quantity"]}'
                     )
                     bets_sent += self.config.chunk_size
+                    retries = 0
                 else:
                     logging.error(
                         'action: apuesta_enviada | result: fail | '
                         f' error: {data["error"]}'
                     )
+
+                    if data["error"] == "Message exceeded maximum length":
+                        self.config.chunk_size = int(self.config.chunk_size
+                                                     * 0.95)
+                    else:
+                        retries += 1
             except json.decoder.JSONDecodeError:
                 logging.error(
                     'action: receive_message | result: fail | '
                     f'client_id: {self.config.id} | '
                     'error: Malformed message'
                 )
+                retries += 1
             except Exception as e:
                 logging.error(
                     'action: receive_message | result: fail | '
@@ -135,7 +144,14 @@ class Client:
                 # Close the connection to the server
                 self.conn.close()
 
+        if bets_sent == len(bets):
             logging.info(
-                f'action: receive_message | result: success | '
-                f'client_id: {self.config.id} | msg: {msg}'
+                'action: apuestas_enviadas | result: success | '
+                f'client_id: {self.config.id}'
+            )
+        elif retries == 3:
+            logging.error(
+                'action: apuestas_enviadas | result: fail | '
+                f'client_id: {self.config.id} | '
+                'error: Too many retries on error'
             )
