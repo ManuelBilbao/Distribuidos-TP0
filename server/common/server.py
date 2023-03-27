@@ -81,7 +81,7 @@ class Server:
                 "success": False,
                 "error": "Malformed message"
             }
-        except TypeError as e:
+        except Exception as e:
             logging.error(
                 f"action: receive_message | result: fail | error: {e}"
             )
@@ -95,14 +95,6 @@ class Server:
             ):
                 response["error"] = "Unexpected field " + \
                                     f"{e.args[0].split(' ')[-1]}"
-        except Exception as e:
-            logging.error(
-                f"action: receive_message | result: fail | error: {e}"
-            )
-            response = {
-                "success": False,
-                "error": "Unknown error"
-            }
         finally:
             encoded_response = json.dumps(response).encode("utf-8")
             encoded_size = len(encoded_response).to_bytes(2, "little",
