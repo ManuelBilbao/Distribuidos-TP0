@@ -121,21 +121,21 @@ class Client:
                 )
             except Exception as e:
                 logging.error(
-                    f'action: receive_message | result: fail | '
+                    'action: receive_message | result: fail | '
                     f'client_id: {self.config.id} | error: {e}'
                 )
                 break
+            finally:
+                # Log the received message
+                logging.info(
+                    'action: receive_message | result: success | '
+                    f'client_id: {self.config.id} | msg: {msg}'
+                )
 
-            # Log the received message
+                # Close the connection to the server
+                self.conn.close()
+
             logging.info(
                 f'action: receive_message | result: success | '
                 f'client_id: {self.config.id} | msg: {msg}'
             )
-
-            # Close the connection to the server
-            self.conn.close()
-
-        logging.info(
-            f'action: timeout_detected | result: success | '
-            f'client_id: {self.config.id}'
-        )
