@@ -97,6 +97,7 @@ class Client:
                         'action: receive_message | result: fail | '
                         'error: Message exceeded maximum length'
                     )
+                    continue
 
                 msg = self.conn.recv(length).rstrip().decode("utf-8")
                 data = json.loads(msg)

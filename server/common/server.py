@@ -7,6 +7,10 @@ import sys
 from .utils import Bet, store_bets
 
 
+class TooLongException(Exception):
+    pass
+
+
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -46,10 +50,7 @@ class Server:
             msg = client_sock.recv(2)
             length = int.from_bytes(msg, "little", signed=False)
             if length > 8190:
-                logging.warning(
-                    'action: receive_message | result: fail | '
-                    'error: Message exceeded maximum length'
-                )
+                raise TooLongException("Message exceeded maximum length")
 
             msg = client_sock.recv(length).rstrip().decode("utf-8")
             data = json.loads(msg)
@@ -80,6 +81,15 @@ class Server:
             response = {
                 "success": False,
                 "error": "Malformed message"
+            }
+        except TooLongException:
+            logging.error(
+                'action: receive_message | result: fail | '
+                'error: Message exceeded maximum length'
+            )
+            response = {
+                "success": False,
+                "error": "Message exceeded maximum length"
             }
         except Exception as e:
             logging.error(
