@@ -79,6 +79,9 @@ class Client:
                     "bets": bets[bets_sent:bets_sent+self.config.chunk_size]
                 }
                 encoded_msg = json.dumps(msg).encode("utf-8")
+                if len(encoded_msg) > 8190:
+                    self.config.chunk_size = int(self.config.chunk_size * 0.95)
+                    continue
                 encoded_size = len(encoded_msg).to_bytes(2, "little",
                                                          signed=False)
                 self.conn.sendall(encoded_size + encoded_msg)
