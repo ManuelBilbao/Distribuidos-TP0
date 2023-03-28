@@ -49,3 +49,11 @@ Para este ejercicio pensé que una forma sencilla y confiable de transmitir los 
 El protocolo que utilizo para la comunicación es un número codificado en 2 bytes, que indica el tamaño del resto del mensaje, seguido de la serialización del JSON codificada en UTF-8. Con este protocolo logro evitar los _short reads_ ya que siempre sé exactamente cuántos bytes tengo que leer.
 
 También, para evitar los _short writes_, remplacé los `send` por `sendall`, que se encarga de reintentar el envío en caso de ser necesario o devolver un error cuando no sea posible.
+
+### Ejercicio 6
+
+> Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). La información de cada agencia será simulada por la ingesta de su archivo numerado correspondiente, provisto por la cátedra dentro de `.data/datasets.zip`.
+
+Lo primero que hice fue modificar el Dockerfile del cliente para que las imágenes tengan los archivos de datos de las apuestas. También modfiqué el protocolo de comunicación. Ahora en la raíz del objeto JSON se envía el código de agencia y una lista con todas las apuestas.
+
+La cantidad de apuestas a enviar por mensaje es configurable por el archivo de configuración o por variable de entorno. De todas formas, si se detecta que los mensajes son demasiado largos con la cantidad de apuestas establecidas, este número bajará un 5% hasta que el mensaje se puede enviar correctamente.
