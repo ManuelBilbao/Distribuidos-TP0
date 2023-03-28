@@ -43,9 +43,10 @@ class Client:
             )
             sys.exit(1)
 
-    # start_client_loop Send messages to the client until
-    # some time threshold is met
-    def start_client_loop(self):
+    # Read file with bets and return a list with them.
+    # In case of failure, error is printed in stdout/stderr
+    # and exit 1 is returned
+    def read_bets_file(self) -> list:
         try:
             file = open(f"/data/agency-{self.config.id}.csv")
             reader = csv.reader(file, delimiter=',')
@@ -57,95 +58,118 @@ class Client:
                 "birthdate": row[3],
                 "number": row[4]
             } for row in reader]
+
+            return bets
         except Exception as e:
             logging.error(
                 f'action: read_file | result: fail | '
                 f'client_id: {self.config.id} | error: {e}'
             )
-            return
+            sys.exit(1)
         finally:
             file.close()
 
+    # Try to send bets to server. Return True on success
+    def send_bets(self, bets: list) -> bool:
+        try:
+            msg = {
+                "agency": self.config.id,
+                "bets": bets
+            }
+            encoded_msg = json.dumps(msg).encode("utf-8")
+
+            logging.info(f"Sending {len(encoded_msg)} bytes")
+            if len(encoded_msg) > 8190:
+                self.config.chunk_size = int(self.config.chunk_size * 0.95)
+                return False
+
+            encoded_size = len(encoded_msg).to_bytes(2, "little",
+                                                     signed=False)
+            self.conn.sendall(encoded_size + encoded_msg)
+
+            return True
+        except Exception as e:
+            logging.error(
+                f'action: send_message | result: fail | '
+                f'client_id: {self.config.id} | error: {e}'
+            )
+            return False
+
+    def read_response(self, bets_sent: int, retries: int) -> (int, int):
+        try:
+            msg = self.conn.recv(2)
+            length = int.from_bytes(msg, "little", signed=False)
+            if length > 8190:
+                logging.warning(
+                    'action: receive_message | result: fail | '
+                    'error: Message exceeded maximum length'
+                )
+                return bets_sent, retries
+
+            msg = self.conn.recv(length).rstrip().decode("utf-8")
+            data = json.loads(msg)
+
+            if data["success"]:
+                logging.info(
+                    'action: apuesta_enviada | result: success | '
+                    f'quantity: {data["quantity"]}'
+                )
+                bets_sent += self.config.chunk_size
+                retries = 0
+            else:
+                logging.error(
+                    'action: apuesta_enviada | result: fail | '
+                    f' error: {data["error"]}'
+                )
+
+                if data["error"] == "Message exceeded maximum length":
+                    self.config.chunk_size = int(self.config.chunk_size
+                                                 * 0.95)
+                else:
+                    retries += 1
+        except json.decoder.JSONDecodeError:
+            logging.error(
+                'action: receive_message | result: fail | '
+                f'client_id: {self.config.id} | '
+                'error: Malformed message'
+            )
+            retries += 1
+        except Exception as e:
+            logging.error(
+                'action: receive_message | result: fail | '
+                f'client_id: {self.config.id} | error: {e}'
+            )
+            retries += 1
+        finally:
+            # Log the received message
+            logging.info(
+                'action: receive_message | result: success | '
+                f'client_id: {self.config.id} | msg: {msg}'
+            )
+
+            # Close the connection to the server
+            self.conn.close()
+
+        return bets_sent, retries
+
+    # start_client_loop Send messages to the client until
+    # some time threshold is met
+    def start_client_loop(self):
+        bets = self.read_bets_file()
+
         bets_sent = 0
         retries = 0
+        logging.info(f"len(bets): {len(bets)}")
         while bets_sent < len(bets) and retries < 3:
             # Create the connection to the server
             self.create_client_socket()
 
-            # Send a message to the server
-            try:
-                msg = {
-                    "agency": self.config.id,
-                    "bets": bets[bets_sent:bets_sent+self.config.chunk_size]
-                }
-                encoded_msg = json.dumps(msg).encode("utf-8")
-                if len(encoded_msg) > 8190:
-                    self.config.chunk_size = int(self.config.chunk_size * 0.95)
-                    continue
-                encoded_size = len(encoded_msg).to_bytes(2, "little",
-                                                         signed=False)
-                self.conn.sendall(encoded_size + encoded_msg)
-            except Exception as e:
-                logging.error(
-                    f'action: send_message | result: fail | '
-                    f'client_id: {self.config.id} | error: {e}'
-                )
-                break
+            if not self.send_bets(
+                bets[bets_sent:bets_sent+self.config.chunk_size]
+            ):
+                continue
 
-            # Receive a message from the server
-            try:
-                msg = self.conn.recv(2)
-                length = int.from_bytes(msg, "little", signed=False)
-                if length > 8190:
-                    logging.warning(
-                        'action: receive_message | result: fail | '
-                        'error: Message exceeded maximum length'
-                    )
-                    continue
-
-                msg = self.conn.recv(length).rstrip().decode("utf-8")
-                data = json.loads(msg)
-
-                if data["success"]:
-                    logging.info(
-                        'action: apuesta_enviada | result: success | '
-                        f'quantity: {data["quantity"]}'
-                    )
-                    bets_sent += self.config.chunk_size
-                    retries = 0
-                else:
-                    logging.error(
-                        'action: apuesta_enviada | result: fail | '
-                        f' error: {data["error"]}'
-                    )
-
-                    if data["error"] == "Message exceeded maximum length":
-                        self.config.chunk_size = int(self.config.chunk_size
-                                                     * 0.95)
-                    else:
-                        retries += 1
-            except json.decoder.JSONDecodeError:
-                logging.error(
-                    'action: receive_message | result: fail | '
-                    f'client_id: {self.config.id} | '
-                    'error: Malformed message'
-                )
-                retries += 1
-            except Exception as e:
-                logging.error(
-                    'action: receive_message | result: fail | '
-                    f'client_id: {self.config.id} | error: {e}'
-                )
-                break
-            finally:
-                # Log the received message
-                logging.info(
-                    'action: receive_message | result: success | '
-                    f'client_id: {self.config.id} | msg: {msg}'
-                )
-
-                # Close the connection to the server
-                self.conn.close()
+            bets_sent, retries = self.read_response(bets_sent, retries)
 
         if bets_sent == len(bets):
             logging.info(
@@ -158,3 +182,4 @@ class Client:
                 f'client_id: {self.config.id} | '
                 'error: Too many retries on error'
             )
+            sys.exit(-1)
