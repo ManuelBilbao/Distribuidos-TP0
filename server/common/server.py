@@ -4,7 +4,10 @@ import signal
 import socket
 import sys
 
-from .utils import Bet, store_bets
+from .utils import Bet, store_bets, load_bets, has_won
+
+
+AGENCIES_NUMBER = 5
 
 
 class TooLongException(Exception):
@@ -17,6 +20,7 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self.agencies_finished = set()
         signal.signal(signal.SIGTERM, self.stop)
 
     def run(self):
@@ -36,6 +40,58 @@ class Server:
         logging.info("Received SIGTERM. Stopping gracefully...")
         self._server_socket.close()
         sys.exit(0)
+
+    def __handle_bets(self, agency, bets):
+        try:
+            bets = [Bet(agency, **bet) for bet in bets]
+            store_bets(bets)
+
+            for bet in bets:
+                logging.info(
+                    'action: apuesta_almacenada | result: success | '
+                    f'dni: {bet.document} | numero: {bet.number}'
+                )
+
+            return {
+                "success": True,
+                "quantity": len(bets)
+            }
+        except Exception as e:
+            logging.error(
+                f"action: parse_bets | result: error | error: {e}"
+            )
+            return {
+                "success": False,
+                "error": "Unknown error"
+            }
+
+    def __handle_finish(self, agency):
+        self.agencies_finished.add(agency)
+
+    def __handle_winners(self, agency):
+        if len(self.agencies_finished) != AGENCIES_NUMBER:
+            logging.warning(
+                "action: ask_winners | result: error | "
+                "error: Not all agencies are ready yet"
+            )
+            return {
+                "success": False,
+                "error": "Not all agencies are ready yet"
+            }
+
+        bets = load_bets()
+        winners = list(map(
+            lambda bet: bet.document,
+            filter(
+                lambda bet: bet.agency == agency and has_won(bet),
+                bets
+            )
+        ))
+
+        return {
+            "success": True,
+            "winners": winners
+        }
 
     def __handle_client_connection(self, client_sock):
         """
@@ -63,19 +119,12 @@ class Server:
                 f'ip: {addr[0]} | msg: {msg}'
             )
 
-            bets = [Bet(data["agency"], **bet) for bet in data["bets"]]
-            store_bets(bets)
-
-            for bet in bets:
-                logging.info(
-                    'action: apuesta_almacenada | result: success | '
-                    f'dni: {bet.document} | numero: {bet.number}'
-                )
-
-            response = {
-                "success": True,
-                "quantity": len(bets)
-            }
+            if data["action"] == "bets":
+                response = self.__handle_bets(int(data["agency"]), data["bets"])
+            elif data["action"] == "finish":
+                response = self.__handle_finish(int(data["agency"]))
+            elif data["action"] == "winners":
+                response = self.__handle_winners(int(data["agency"]))
         except json.decoder.JSONDecodeError:
             logging.error(
                 "action: receive_message | result: fail | "
@@ -102,17 +151,12 @@ class Server:
                 "success": False,
                 "error": "Unknown error"
             }
-
-            if e.args[0].startswith(
-                "__init__() got an unexpected keyword argument"
-            ):
-                response["error"] = "Unexpected field " + \
-                                    f"{e.args[0].split(' ')[-1]}"
         finally:
-            encoded_response = json.dumps(response).encode("utf-8")
-            encoded_size = len(encoded_response).to_bytes(2, "little",
-                                                          signed=False)
-            client_sock.sendall(encoded_size + encoded_response)
+            if response:
+                encoded_response = json.dumps(response).encode("utf-8")
+                encoded_size = len(encoded_response).to_bytes(2, "little",
+                                                              signed=False)
+                client_sock.sendall(encoded_size + encoded_response)
             client_sock.close()
 
     def __accept_new_connection(self):
