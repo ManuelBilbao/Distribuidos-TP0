@@ -52,7 +52,10 @@ class Server:
             if length > 8190:
                 raise TooLongException("Message exceeded maximum length")
 
-            msg = client_sock.recv(length).rstrip().decode("utf-8")
+            msg = ""
+            while len(msg) < length-1:
+                msg += client_sock.recv(length-len(msg)).rstrip()\
+                                  .decode("utf-8")
             data = json.loads(msg)
 
             logging.info(
