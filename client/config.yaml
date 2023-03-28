@@ -1,6 +1,7 @@
 # id: 1
 server:
   address: "server:12345"
-chunk_size: 10
+chunk_size: 50
+ask_delay: 1  # In seconds
 log:
   level: "info"

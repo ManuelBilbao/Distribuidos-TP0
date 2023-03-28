@@ -29,6 +29,7 @@ def init_config() -> ClientConfig:
 
         server_address = config["server"]["address"]
         chunk_size = int(config["chunk_size"])
+        ask_delay = int(config["ask_delay"])
 
         log_level = config["log"]["level"]
     except Exception:
@@ -51,7 +52,13 @@ def init_config() -> ClientConfig:
             logging.error('Could not parse CLI_CHUNK_SIZE env var as int.')
             raise
 
-    config = ClientConfig(id, server_address, chunk_size)
+        try:
+            ask_delay = int(os.environ.get('CLI_ASK_DELAY'))
+        except Exception:
+            logging.error('Could not parse CLI_ASK_DELAY env var as int.')
+            raise
+
+    config = ClientConfig(id, server_address, chunk_size, ask_delay)
 
     # Set log level
     if not log_level:

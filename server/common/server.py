@@ -76,7 +76,7 @@ class Server:
             )
             return {
                 "success": False,
-                "error": "Not all agencies are ready yet"
+                "error": "Lottery not done yet"
             }
 
         bets = load_bets()
@@ -120,7 +120,8 @@ class Server:
             )
 
             if data["action"] == "bets":
-                response = self.__handle_bets(int(data["agency"]), data["bets"])
+                response = self.__handle_bets(int(data["agency"]),
+                                              data["bets"])
             elif data["action"] == "finish":
                 response = self.__handle_finish(int(data["agency"]))
             elif data["action"] == "winners":

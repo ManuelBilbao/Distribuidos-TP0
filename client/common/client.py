@@ -4,14 +4,17 @@ import logging
 import signal
 import socket
 import sys
+import time
 
 
 # ClientConfig Configuration used by the client
 class ClientConfig:
-    def __init__(self, id: str, server_address: str, chunk_size: int):
+    def __init__(self, id: str, server_address: str, chunk_size:
+                 int, ask_delay: int):
         self.id = id
         self.server_address = server_address
         self.chunk_size = chunk_size
+        self.ask_delay = ask_delay
 
 
 # Client Entity that encapsulates how
@@ -182,6 +185,10 @@ class Client:
             data = json.loads(msg)
 
             if not data["success"]:
+                if data["error"] == "Lottery not done yet":
+                    time.sleep(self.config.ask_delay)
+                    return self.ask_winners()
+
                 raise Exception(data["error"])
 
             logging.info(
