@@ -9,23 +9,23 @@ import time
 from .utils import Bet, store_bets, load_bets, has_won
 
 
-AGENCIES_NUMBER = 5
-MAX_THREADS = 10
-
-
 class TooLongException(Exception):
     pass
 
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, agencies, max_threads=1):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+
+        self.agencies = agencies
         self.agencies_finished = set()
-        self.thread_semaphore = threading.Semaphore(MAX_THREADS)
+
+        self.thread_semaphore = threading.Semaphore(max_threads)
         self.file_lock = threading.Lock()
+
         signal.signal(signal.SIGTERM, self.stop)
 
     def run(self):
@@ -89,7 +89,7 @@ class Server:
         self.agencies_finished.add(agency)
 
     def __handle_winners(self, agency):
-        if len(self.agencies_finished) != AGENCIES_NUMBER:
+        if len(self.agencies_finished) != self.agencies:
             logging.warning(
                 "action: ask_winners | result: error | "
                 "error: Not all agencies are ready yet"
