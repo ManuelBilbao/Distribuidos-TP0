@@ -65,3 +65,9 @@ La cantidad de apuestas a enviar por mensaje es configurable por el archivo de c
 En este ejercicio volví a modificar el protocolo para que se adapte mejor a las necesidades del problema. En este caso, agregué un campo _action_ que indica el tipo de acción que involucra el mensaje. Este puede ser "bets", "finish" o "winners".
 
 Una desición que tuve que tomar fue qué hacer cuando el cliente solicita la lista de ganadores y el servidor todavía no realizó el sorteo. Lo que terminé haciendo fue utilizar la metodología de _polling_ con la cual el cliente le pregunta al servidor repetidamente (con cierta demora) y este le responde error o la lista según ya esté disponible.
+
+### Ejercicio 8
+
+> Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. [...]
+
+Para este último ejercicio utilicé la librería `threading` de Python, que ofrece varias herramientas útiles. Por cada nueva conexión se lanza un _thread_ nuevo, que será el encargado de manejar ese cliente. Para evitar que se desplieguen miles de _threads_ simultáneamente, usé un semáforo que define la cantidad máxima de _threads_ que pueden haber, la cual se establece en el archivo de configuración. Además, para evitar accesos simulatáneos de lectura o escritura al archivo de apuestas, utilicé un _Lock_ (_Mutex_) que debe ser adquirido por cada hilo antes de acceder al archivo.
