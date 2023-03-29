@@ -3,11 +3,14 @@ import logging
 import signal
 import socket
 import sys
+import threading
+import time
 
 from .utils import Bet, store_bets, load_bets, has_won
 
 
 AGENCIES_NUMBER = 5
+MAX_THREADS = 10
 
 
 class TooLongException(Exception):
@@ -21,6 +24,8 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self.agencies_finished = set()
+        self.thread_semaphore = threading.Semaphore(MAX_THREADS)
+        self.file_lock = threading.Lock()
         signal.signal(signal.SIGTERM, self.stop)
 
     def run(self):
@@ -32,9 +37,21 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
+        threads = []
         while True:
             client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
+            self.thread_semaphore.acquire()
+            thread = threading.Thread(
+                target=self.__handle_client_connection,
+                args=(client_sock,)
+            )
+            threads += [thread]
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+            # self.__handle_client_connection(client_sock)
 
     def stop(self, *args):
         logging.info("Received SIGTERM. Stopping gracefully...")
@@ -44,7 +61,10 @@ class Server:
     def __handle_bets(self, agency, bets):
         try:
             bets = [Bet(agency, **bet) for bet in bets]
-            store_bets(bets)
+
+            with self.file_lock:
+                # time.sleep(4)  # Con esto podemos probar la paralelizción
+                store_bets(bets)
 
             for bet in bets:
                 logging.info(
@@ -79,7 +99,8 @@ class Server:
                 "error": "Lottery not done yet"
             }
 
-        bets = load_bets()
+        with self.file_lock:
+            bets = load_bets()
         winners = list(map(
             lambda bet: bet.document,
             filter(
@@ -159,6 +180,7 @@ class Server:
                                                               signed=False)
                 client_sock.sendall(encoded_size + encoded_response)
             client_sock.close()
+            self.thread_semaphore.release()
 
     def __accept_new_connection(self):
         """
