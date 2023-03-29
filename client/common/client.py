@@ -186,6 +186,10 @@ class Client:
 
             if not data["success"]:
                 if data["error"] == "Lottery not done yet":
+                    logging.info(
+                        "action: consulta_ganadores | result: fail | "
+                        "error: Lottery not done yet"
+                    )
                     time.sleep(self.config.ask_delay)
                     return self.ask_winners()
 
