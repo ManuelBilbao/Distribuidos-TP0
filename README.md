@@ -57,3 +57,11 @@ También, para evitar los _short writes_, remplacé los `send` por `sendall`, qu
 Lo primero que hice fue modificar el Dockerfile del cliente para que las imágenes tengan los archivos de datos de las apuestas. También modfiqué el protocolo de comunicación. Ahora en la raíz del objeto JSON se envía el código de agencia y una lista con todas las apuestas.
 
 La cantidad de apuestas a enviar por mensaje es configurable por el archivo de configuración o por variable de entorno. De todas formas, si se detecta que los mensajes son demasiado largos con la cantidad de apuestas establecidas, este número bajará un 5% hasta que el mensaje se puede enviar correctamente.
+
+### Ejercicio 7
+
+> Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo. Inmediatamente después de la notificacion, los clientes consultarán la lista de ganadores del sorteo correspondientes a su agencia. Una vez el cliente obtenga los resultados, deberá imprimir por log: `action: consulta_ganadores | result: success | cant_ganadores: ${CANT}`. [...]
+
+En este ejercicio volví a modificar el protocolo para que se adapte mejor a las necesidades del problema. En este caso, agregué un campo _action_ que indica el tipo de acción que involucra el mensaje. Este puede ser "bets", "finish" o "winners".
+
+Una desición que tuve que tomar fue qué hacer cuando el cliente solicita la lista de ganadores y el servidor todavía no realizó el sorteo. Lo que terminé haciendo fue utilizar la metodología de _polling_ con la cual el cliente le pregunta al servidor repetidamente (con cierta demora) y este le responde error o la lista según ya esté disponible.
