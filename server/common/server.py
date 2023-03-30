@@ -22,6 +22,7 @@ class Server:
 
         self.agencies = agencies
         self.agencies_finished = set()
+        self.agencies_finished_lock = threading.Lock()
 
         self.threads = []
         self.thread_semaphore = threading.Semaphore(max_threads)
@@ -84,18 +85,20 @@ class Server:
             }
 
     def __handle_finish(self, agency):
-        self.agencies_finished.add(agency)
+        with self.agencies_finished_lock:
+            self.agencies_finished.add(agency)
 
     def __handle_winners(self, agency):
-        if len(self.agencies_finished) != self.agencies:
-            logging.warning(
-                "action: ask_winners | result: error | "
-                "error: Not all agencies are ready yet"
-            )
-            return {
-                "success": False,
-                "error": "Lottery not done yet"
-            }
+        with self.agencies_finished_lock:
+            if len(self.agencies_finished) != self.agencies:
+                logging.warning(
+                    "action: ask_winners | result: error | "
+                    "error: Not all agencies are ready yet"
+                )
+                return {
+                    "success": False,
+                    "error": "Lottery not done yet"
+                }
 
         with self.file_lock:
             bets = load_bets()
