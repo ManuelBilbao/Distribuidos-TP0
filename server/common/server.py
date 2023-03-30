@@ -23,6 +23,7 @@ class Server:
         self.agencies = agencies
         self.agencies_finished = set()
 
+        self.threads = []
         self.thread_semaphore = threading.Semaphore(max_threads)
         self.file_lock = threading.Lock()
 
@@ -37,7 +38,6 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        threads = []
         while True:
             client_sock = self.__accept_new_connection()
             self.thread_semaphore.acquire()
@@ -45,18 +45,16 @@ class Server:
                 target=self.__handle_client_connection,
                 args=(client_sock,)
             )
-            threads += [thread]
+            self.threads += [thread]
             thread.start()
-
-        for thread in threads:
-            thread.join()
-
-            # self.__handle_client_connection(client_sock)
 
     def stop(self, *args):
         logging.info("Received SIGTERM. Stopping gracefully...")
         self._server_socket.close()
         sys.exit(0)
+
+        for thread in self.threads:
+            thread.join()
 
     def __handle_bets(self, agency, bets):
         try:
@@ -135,7 +133,7 @@ class Server:
                                   .decode("utf-8")
             data = json.loads(msg)
 
-            logging.info(
+            logging.debug(
                 'action: receive_message | result: success | '
                 f'ip: {addr[0]} | msg: {msg}'
             )
