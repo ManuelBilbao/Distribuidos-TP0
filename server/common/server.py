@@ -49,6 +49,11 @@ class Server:
             self.threads += [thread]
             thread.start()
 
+            [thread.join() for thread in self.threads if not thread.is_alive()]
+            self.threads = [
+                thread for thread in self.threads if thread.is_alive()
+            ]
+
     def stop(self, *args):
         logging.info("Received SIGTERM. Stopping gracefully...")
         self._server_socket.close()
