@@ -1,4 +1,3 @@
-import json
 import logging
 import signal
 import socket
@@ -11,6 +10,8 @@ from .utils import Bet, store_bets, load_bets, has_won
 TYPE_BETS = 1
 TYPE_FINISH = 2
 TYPE_ASK_WINNERS = 4
+TYPE_RESPONSE_ERROR = 8
+TYPE_RESPONSE_SUCCESS = 9
 
 
 class TooLongException(Exception):
@@ -84,6 +85,12 @@ class Server:
 
         return stream[:-1].decode("utf-8"), len(stream)
 
+    def make_response(self, success, message):
+        type = TYPE_RESPONSE_SUCCESS if success else TYPE_RESPONSE_ERROR
+        return type.to_bytes(1, "little", signed=False) + \
+            len(message).to_bytes(2, "little", signed=False) + \
+            message
+
     def __handle_bets(self, agency, client_socket):
         try:
             msg_length = client_socket.recv(2)
@@ -91,7 +98,6 @@ class Server:
             if length > 8190:
                 raise TooLongException("Message exceeded maximum length")
 
-            logging.debug(f"received {length} bytes from {agency}")
             bets = []
             bytes_read = 0
             while bytes_read < length-1:
@@ -111,15 +117,18 @@ class Server:
                     f'dni: {bet.document} | numero: {bet.number}'
                 )
 
+            return self.make_response(True, str(len(bets)).encode("utf-8"))
             return {
                 "success": True,
                 "quantity": len(bets)
             }
         except TooLongException:
+            error = "Message exceeded maximum length"
             logging.error(
                 'action: receive_message | result: fail | '
-                'error: Message exceeded maximum length'
+                f'error: {error}'
             )
+            return self.make_response(False, error.encode("utf-8"))
             return {
                 "success": False,
                 "error": "Message exceeded maximum length"
@@ -128,6 +137,7 @@ class Server:
             logging.error(
                 f"action: parse_bets | result: error | error: {e}"
             )
+            return self.make_response(False, "Unknown error".encode("utf-8"))
             return {
                 "success": False,
                 "error": "Unknown error"
@@ -140,10 +150,12 @@ class Server:
     def __handle_winners(self, agency):
         with self.agencies_finished_lock:
             if len(self.agencies_finished) != self.agencies:
+                error = "Lottery not done yet"
                 logging.warning(
                     "action: ask_winners | result: error | "
-                    "error: Not all agencies are ready yet"
+                    f"error: {error}"
                 )
+                return self.make_response(False, error.encode("utf-8"))
                 return {
                     "success": False,
                     "error": "Lottery not done yet"
@@ -152,13 +164,14 @@ class Server:
         with self.file_lock:
             bets = load_bets()
         winners = list(map(
-            lambda bet: bet.document,
+            lambda bet: str(bet.document).encode("utf-8"),
             filter(
                 lambda bet: bet.agency == agency and has_won(bet),
                 bets
             )
         ))
 
+        return self.make_response(True, b"\0".join(winners))
         return {
             "success": True,
             "winners": winners
@@ -185,22 +198,12 @@ class Server:
                 f'msg_type: {msg_type}'
             )
 
-            response = None
             if msg_type == TYPE_BETS:
                 response = self.__handle_bets(agency, client_sock)
             elif msg_type == TYPE_FINISH:
                 response = self.__handle_finish(agency)
             elif msg_type == TYPE_ASK_WINNERS:
                 response = self.__handle_winners(agency)
-        except json.decoder.JSONDecodeError:
-            logging.error(
-                "action: receive_message | result: fail | "
-                "error: Malformed message"
-            )
-            response = {
-                "success": False,
-                "error": "Malformed message"
-            }
         except Exception as e:
             logging.error(
                 f"action: receive_message | result: fail | error: {e}"
@@ -213,10 +216,7 @@ class Server:
                 response["error"] = "Server closed"
         finally:
             if response:
-                encoded_response = json.dumps(response).encode("utf-8")
-                encoded_size = len(encoded_response).to_bytes(2, "little",
-                                                              signed=False)
-                client_sock.sendall(encoded_size + encoded_response)
+                client_sock.sendall(response)
             client_sock.close()
             self.thread_semaphore.release()
 

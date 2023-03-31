@@ -1,5 +1,4 @@
 import csv
-import json
 import logging
 import signal
 import socket
@@ -10,6 +9,8 @@ import time
 TYPE_BETS = 1
 TYPE_FINISH = 2
 TYPE_ASK_WINNERS = 4
+TYPE_RESPONSE_ERROR = 8
+TYPE_RESPONSE_SUCCESS = 9
 
 
 # ClientConfig Configuration used by the client
@@ -102,8 +103,8 @@ class Client:
 
     def read_response(self, bets_sent: int, retries: int) -> (int, int):
         try:
-            msg = self.conn.recv(2)
-            length = int.from_bytes(msg, "little", signed=False)
+            type = int.from_bytes(self.conn.recv(1), "little", signed=False)
+            length = int.from_bytes(self.conn.recv(2), "little", signed=False)
             if length > 8190:
                 logging.warning(
                     'action: receive_message | result: fail | '
@@ -111,34 +112,26 @@ class Client:
                 )
                 return bets_sent, retries
 
-            msg = self.conn.recv(length).rstrip().decode("utf-8")
-            data = json.loads(msg)
+            msg = self.conn.recv(length).decode("utf-8")
 
-            if data["success"]:
+            if type == TYPE_RESPONSE_SUCCESS:
                 logging.info(
                     'action: apuesta_enviada | result: success | '
-                    f'quantity: {data["quantity"]}'
+                    f'quantity: {msg}'
                 )
                 bets_sent += self.config.chunk_size
                 retries = 0
             else:
                 logging.error(
                     'action: apuesta_enviada | result: fail | '
-                    f' error: {data["error"]}'
+                    f' error: {msg}'
                 )
 
-                if data["error"] == "Message exceeded maximum length":
+                if msg == "Message exceeded maximum length":
                     self.config.chunk_size = int(self.config.chunk_size
                                                  * 0.95)
                 else:
                     retries += 1
-        except json.decoder.JSONDecodeError:
-            logging.error(
-                'action: receive_message | result: fail | '
-                f'client_id: {self.config.id} | '
-                'error: Malformed message'
-            )
-            retries += 1
         except Exception as e:
             if not self.closing:
                 logging.error(
@@ -148,7 +141,7 @@ class Client:
                 retries += 1
         finally:
             # Log the received message
-            logging.info(
+            logging.debug(
                 'action: receive_message | result: success | '
                 f'client_id: {self.config.id} | msg: {msg}'
             )
@@ -182,18 +175,18 @@ class Client:
         self.send_message(TYPE_ASK_WINNERS)
 
         try:
-            msg = self.conn.recv(2)
-            length = int.from_bytes(msg, "little", signed=False)
+            type = int.from_bytes(self.conn.recv(1), "little", signed=False)
+            length = int.from_bytes(self.conn.recv(2), "little", signed=False)
             if length > 8190:
                 raise Exception("Message exceeded maximum length")
 
-            msg = ""
-            while len(msg) < length-1:
-                msg += self.conn.recv(length).rstrip().decode("utf-8")
-            data = json.loads(msg)
+            stream = b""
+            while len(stream) < length-1:
+                stream += self.conn.recv(length - len(stream))
 
-            if not data["success"]:
-                if data["error"] == "Lottery not done yet":
+            if type == TYPE_RESPONSE_ERROR:
+                error = stream.decode("utf-8")
+                if error == "Lottery not done yet":
                     logging.info(
                         "action: consulta_ganadores | result: fail | "
                         "error: Lottery not done yet"
@@ -202,11 +195,12 @@ class Client:
                     if not self.closing:
                         return self.ask_winners()
 
-                raise Exception(data["error"])
+                raise Exception(error)
 
+            winners = list(stream.split(b"\0"))
             logging.info(
                 'action: consulta_ganadores | result: success | '
-                f'cant_ganadores: {len(data["winners"])}'
+                f'cant_ganadores: {len(winners)}'
             )
         except Exception as e:
             if not self.closing:
