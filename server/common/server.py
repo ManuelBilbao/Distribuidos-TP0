@@ -98,14 +98,16 @@ class Server:
             if length > 8190:
                 raise TooLongException("Message exceeded maximum length")
 
+            stream = b""
+            while len(stream) < length-1:
+                stream += client_socket.recv(length - len(stream))
+
+            rows = stream.split("\n".encode("utf-8"))
+
             bets = []
-            bytes_read = 0
-            while bytes_read < length-1:
-                reads = [self.read_until_zero(client_socket) for i in range(5)]
-
-                bytes_read += sum(map(lambda x: x[1], reads))
-
-                bets += [Bet(agency, *map(lambda x: x[0], reads))]
+            for row in rows:
+                data = [campo.decode("utf-8") for campo in row.split(b"\0")]
+                bets += [Bet(agency, *data)]
 
             with self.file_lock:
                 # time.sleep(4)  # Con esto podemos probar la concurrencia
@@ -118,10 +120,6 @@ class Server:
                 )
 
             return self.make_response(True, str(len(bets)).encode("utf-8"))
-            return {
-                "success": True,
-                "quantity": len(bets)
-            }
         except TooLongException:
             error = "Message exceeded maximum length"
             logging.error(
@@ -129,19 +127,11 @@ class Server:
                 f'error: {error}'
             )
             return self.make_response(False, error.encode("utf-8"))
-            return {
-                "success": False,
-                "error": "Message exceeded maximum length"
-            }
         except Exception as e:
             logging.error(
                 f"action: parse_bets | result: error | error: {e}"
             )
             return self.make_response(False, "Unknown error".encode("utf-8"))
-            return {
-                "success": False,
-                "error": "Unknown error"
-            }
 
     def __handle_finish(self, agency):
         with self.agencies_finished_lock:
@@ -156,10 +146,6 @@ class Server:
                     f"error: {error}"
                 )
                 return self.make_response(False, error.encode("utf-8"))
-                return {
-                    "success": False,
-                    "error": "Lottery not done yet"
-                }
 
         with self.file_lock:
             bets = load_bets()
@@ -172,10 +158,6 @@ class Server:
         ))
 
         return self.make_response(True, b"\0".join(winners))
-        return {
-            "success": True,
-            "winners": winners
-        }
 
     def __handle_client_connection(self, client_sock):
         """
@@ -187,10 +169,9 @@ class Server:
         try:
             addr = client_sock.getpeername()
 
-            msg_type = int.from_bytes(client_sock.recv(1), "little",
-                                      signed=False)
-            msg_agency = client_sock.recv(1)
-            agency = int.from_bytes(msg_agency, "little", signed=False)
+            type_agency = client_sock.recv(2)
+            msg_type = int.from_bytes(type_agency[:1], "little", signed=False)
+            agency = int.from_bytes(type_agency[1:], "little", signed=False)
 
             logging.debug(
                 'action: receive_message | result: success | '
@@ -208,12 +189,12 @@ class Server:
             logging.error(
                 f"action: receive_message | result: fail | error: {e}"
             )
-            response = {
-                "success": False,
-                "error": "Unknown error"
-            }
+            response = self.make_response(False,
+                                          "Unknown error".encode("utf-8"))
             if not self.keep_running:
-                response["error"] = "Server closed"
+                response = self.make_response(False,
+                                              "Server close".encode("utf-8"))
+
         finally:
             if response:
                 client_sock.sendall(response)

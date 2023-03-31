@@ -103,8 +103,9 @@ class Client:
 
     def read_response(self, bets_sent: int, retries: int) -> (int, int):
         try:
-            type = int.from_bytes(self.conn.recv(1), "little", signed=False)
-            length = int.from_bytes(self.conn.recv(2), "little", signed=False)
+            tl = self.conn.recv(3)
+            type = int.from_bytes(tl[:1], "little", signed=False)
+            length = int.from_bytes(tl[1:], "little", signed=False)
             if length > 8190:
                 logging.warning(
                     'action: receive_message | result: fail | '
@@ -112,7 +113,17 @@ class Client:
                 )
                 return bets_sent, retries
 
-            msg = self.conn.recv(length).decode("utf-8")
+            stream = b""
+            while len(stream) < length-1:
+                stream += self.conn.recv(length - len(stream))
+
+            msg = stream.decode("utf-8")
+
+            # Log the received message
+            logging.debug(
+                'action: receive_message | result: success | '
+                f'client_id: {self.config.id} | msg: {msg}'
+            )
 
             if type == TYPE_RESPONSE_SUCCESS:
                 logging.info(
@@ -140,12 +151,6 @@ class Client:
                 )
                 retries += 1
         finally:
-            # Log the received message
-            logging.debug(
-                'action: receive_message | result: success | '
-                f'client_id: {self.config.id} | msg: {msg}'
-            )
-
             # Close the connection to the server
             self.conn.close()
 
@@ -159,8 +164,9 @@ class Client:
             msg += bet["last_name"].encode("utf-8") + b"\0"
             msg += bet["document"].encode("utf-8") + b"\0"
             msg += bet["birthdate"].encode("utf-8") + b"\0"
-            msg += bet["number"].encode("utf-8") + b"\0"
-        return self.send_message(TYPE_BETS, msg)
+            msg += bet["number"].encode("utf-8")
+            msg += "\n".encode("utf-8")
+        return self.send_message(TYPE_BETS, msg[:-1])
 
     def send_finish(self):
         self.create_client_socket()
@@ -175,8 +181,9 @@ class Client:
         self.send_message(TYPE_ASK_WINNERS)
 
         try:
-            type = int.from_bytes(self.conn.recv(1), "little", signed=False)
-            length = int.from_bytes(self.conn.recv(2), "little", signed=False)
+            tl = self.conn.recv(3)
+            type = int.from_bytes(tl[:1], "little", signed=False)
+            length = int.from_bytes(tl[1:], "little", signed=False)
             if length > 8190:
                 raise Exception("Message exceeded maximum length")
 
@@ -197,7 +204,7 @@ class Client:
 
                 raise Exception(error)
 
-            winners = list(stream.split(b"\0"))
+            winners = list(stream.split(b"\0")) if len(stream) > 0 else []
             logging.info(
                 'action: consulta_ganadores | result: success | '
                 f'cant_ganadores: {len(winners)}'
