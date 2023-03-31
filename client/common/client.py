@@ -22,6 +22,7 @@ class Client:
     def __init__(self, config: ClientConfig):
         self.config = config
         self.conn = None
+        self.closing = False
         signal.signal(signal.SIGTERM, self.exit)
 
     def exit(self, *args):
@@ -30,7 +31,7 @@ class Client:
             'Stopping gracefully...'
         )
         self.conn.close()
-        sys.exit(0)
+        self.closing = True
 
     # create_client_socket Initializes client socket. In case of
     # failure, error is printed in stdout/stderr and exit 1 is returned
@@ -81,10 +82,11 @@ class Client:
 
             return True
         except Exception as e:
-            logging.error(
-                f'action: send_message | result: fail | '
-                f'client_id: {self.config.id} | error: {e}'
-            )
+            if not self.closing:
+                logging.error(
+                    f'action: send_message | result: fail | '
+                    f'client_id: {self.config.id} | error: {e}'
+                )
             return False
 
     # Try to send bets to server. Return True on success
@@ -136,11 +138,12 @@ class Client:
             )
             retries += 1
         except Exception as e:
-            logging.error(
-                'action: receive_message | result: fail | '
-                f'client_id: {self.config.id} | error: {e}'
-            )
-            retries += 1
+            if not self.closing:
+                logging.error(
+                    'action: receive_message | result: fail | '
+                    f'client_id: {self.config.id} | error: {e}'
+                )
+                retries += 1
         finally:
             # Log the received message
             logging.info(
@@ -191,7 +194,8 @@ class Client:
                         "error: Lottery not done yet"
                     )
                     time.sleep(self.config.ask_delay)
-                    return self.ask_winners()
+                    if not self.closing:
+                        return self.ask_winners()
 
                 raise Exception(data["error"])
 
@@ -200,9 +204,10 @@ class Client:
                 f'cant_ganadores: {len(data["winners"])}'
             )
         except Exception as e:
-            logging.error(
-                f'action: consulta_ganadores | result: fail | error: {e}'
-            )
+            if not self.closing:
+                logging.error(
+                    f'action: consulta_ganadores | result: fail | error: {e}'
+                )
 
         finally:
             self.conn.close()
@@ -214,7 +219,7 @@ class Client:
 
         bets_sent = 0
         retries = 0
-        while bets_sent < len(bets) and retries < 3:
+        while not self.closing and bets_sent < len(bets) and retries < 3:
             # Create the connection to the server
             self.create_client_socket()
 
@@ -224,6 +229,9 @@ class Client:
                 continue
 
             bets_sent, retries = self.read_response(bets_sent, retries)
+
+        if self.closing:
+            return
 
         if retries == 3:
             logging.error(

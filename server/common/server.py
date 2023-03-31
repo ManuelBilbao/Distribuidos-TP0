@@ -2,7 +2,6 @@ import json
 import logging
 import signal
 import socket
-import sys
 import threading
 import time
 
@@ -39,8 +38,19 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        while True:
-            client_sock = self.__accept_new_connection()
+        self.keep_running = True
+        while self.keep_running:
+            try:
+                client_sock = self.__accept_new_connection()
+            except Exception as e:
+                if self.keep_running:
+                    logging.error(
+                        'action: accept_connections | result: fail | '
+                        f'error {e}'
+                    )
+                    self._server_socket.close()
+                break
+
             self.thread_semaphore.acquire()
             thread = threading.Thread(
                 target=self.__handle_client_connection,
@@ -57,7 +67,7 @@ class Server:
     def stop(self, *args):
         logging.info("Received SIGTERM. Stopping gracefully...")
         self._server_socket.close()
-        sys.exit(0)
+        self.keep_running = False
 
         for thread in self.threads:
             thread.join()
@@ -179,6 +189,8 @@ class Server:
                 "success": False,
                 "error": "Unknown error"
             }
+            if not self.keep_running:
+                response["error"] = "Server closed"
         finally:
             if response:
                 encoded_response = json.dumps(response).encode("utf-8")
