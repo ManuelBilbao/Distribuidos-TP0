@@ -7,6 +7,11 @@ import sys
 import time
 
 
+TYPE_BETS = 1
+TYPE_FINISH = 2
+TYPE_ASK_WINNERS = 4
+
+
 # ClientConfig Configuration used by the client
 class ClientConfig:
     def __init__(self, id: str, server_address: str, chunk_size:
@@ -73,12 +78,18 @@ class Client:
         finally:
             file.close()
 
-    def send_message(self, message: dict) -> bool:
+    def send_message(self, type: int, message: dict = None) -> bool:
         try:
-            encoded_msg = json.dumps(message).encode("utf-8")
-            encoded_size = len(encoded_msg).to_bytes(2, "little",
-                                                     signed=False)
-            self.conn.sendall(encoded_size + encoded_msg)
+            encoded_type = type.to_bytes(1, "little", signed=False)
+            encoded_agency = int(self.config.id).to_bytes(1, "little",
+                                                          signed=False)
+
+            if message:
+                encoded_size = len(message).to_bytes(2, "little", signed=False)
+                self.conn.sendall(encoded_type + encoded_agency +
+                                  encoded_size + message)
+            else:
+                self.conn.sendall(encoded_type + encoded_agency)
 
             return True
         except Exception as e:
@@ -88,15 +99,6 @@ class Client:
                     f'client_id: {self.config.id} | error: {e}'
                 )
             return False
-
-    # Try to send bets to server. Return True on success
-    def send_bets(self, bets: list) -> bool:
-        msg = {
-            "agency": self.config.id,
-            "action": "bets",
-            "bets": bets
-        }
-        return self.send_message(msg)
 
     def read_response(self, bets_sent: int, retries: int) -> (int, int):
         try:
@@ -156,25 +158,28 @@ class Client:
 
         return bets_sent, retries
 
+    # Try to send bets to server. Return True on success
+    def send_bets(self, bets: list) -> bool:
+        msg = b""
+        for bet in bets:
+            msg += bet["first_name"].encode("utf-8") + b"\0"
+            msg += bet["last_name"].encode("utf-8") + b"\0"
+            msg += bet["document"].encode("utf-8") + b"\0"
+            msg += bet["birthdate"].encode("utf-8") + b"\0"
+            msg += bet["number"].encode("utf-8") + b"\0"
+        return self.send_message(TYPE_BETS, msg)
+
     def send_finish(self):
         self.create_client_socket()
 
-        msg = {
-            "agency": self.config.id,
-            "action": "finish"
-        }
-        self.send_message(msg)
+        self.send_message(TYPE_FINISH)
 
         self.conn.close()
 
     def ask_winners(self):
         self.create_client_socket()
 
-        msg = {
-            "agency": self.config.id,
-            "action": "winners"
-        }
-        self.send_message(msg)
+        self.send_message(TYPE_ASK_WINNERS)
 
         try:
             msg = self.conn.recv(2)

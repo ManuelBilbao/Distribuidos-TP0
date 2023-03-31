@@ -8,6 +8,11 @@ import time
 from .utils import Bet, store_bets, load_bets, has_won
 
 
+TYPE_BETS = 1
+TYPE_FINISH = 2
+TYPE_ASK_WINNERS = 4
+
+
 class TooLongException(Exception):
     pass
 
@@ -72,12 +77,32 @@ class Server:
         for thread in self.threads:
             thread.join()
 
-    def __handle_bets(self, agency, bets):
+    def read_until_zero(self, socket):
+        stream = b""
+        while len(stream) == 0 or stream[-1] != 0:
+            stream += socket.recv(1)
+
+        return stream[:-1].decode("utf-8"), len(stream)
+
+    def __handle_bets(self, agency, client_socket):
         try:
-            bets = [Bet(agency, **bet) for bet in bets]
+            msg_length = client_socket.recv(2)
+            length = int.from_bytes(msg_length, "little", signed=False)
+            if length > 8190:
+                raise TooLongException("Message exceeded maximum length")
+
+            logging.debug(f"received {length} bytes from {agency}")
+            bets = []
+            bytes_read = 0
+            while bytes_read < length-1:
+                reads = [self.read_until_zero(client_socket) for i in range(5)]
+
+                bytes_read += sum(map(lambda x: x[1], reads))
+
+                bets += [Bet(agency, *map(lambda x: x[0], reads))]
 
             with self.file_lock:
-                # time.sleep(4)  # Con esto podemos probar la paralelizción
+                # time.sleep(4)  # Con esto podemos probar la concurrencia
                 store_bets(bets)
 
             for bet in bets:
@@ -89,6 +114,15 @@ class Server:
             return {
                 "success": True,
                 "quantity": len(bets)
+            }
+        except TooLongException:
+            logging.error(
+                'action: receive_message | result: fail | '
+                'error: Message exceeded maximum length'
+            )
+            return {
+                "success": False,
+                "error": "Message exceeded maximum length"
             }
         except Exception as e:
             logging.error(
@@ -140,29 +174,24 @@ class Server:
         try:
             addr = client_sock.getpeername()
 
-            msg = client_sock.recv(2)
-            length = int.from_bytes(msg, "little", signed=False)
-            if length > 8190:
-                raise TooLongException("Message exceeded maximum length")
-
-            msg = ""
-            while len(msg) < length-1:
-                msg += client_sock.recv(length-len(msg)).rstrip()\
-                                  .decode("utf-8")
-            data = json.loads(msg)
+            msg_type = int.from_bytes(client_sock.recv(1), "little",
+                                      signed=False)
+            msg_agency = client_sock.recv(1)
+            agency = int.from_bytes(msg_agency, "little", signed=False)
 
             logging.debug(
                 'action: receive_message | result: success | '
-                f'ip: {addr[0]} | msg: {msg}'
+                f'ip: {addr[0]} | agency: {agency} | '
+                f'msg_type: {msg_type}'
             )
 
-            if data["action"] == "bets":
-                response = self.__handle_bets(int(data["agency"]),
-                                              data["bets"])
-            elif data["action"] == "finish":
-                response = self.__handle_finish(int(data["agency"]))
-            elif data["action"] == "winners":
-                response = self.__handle_winners(int(data["agency"]))
+            response = None
+            if msg_type == TYPE_BETS:
+                response = self.__handle_bets(agency, client_sock)
+            elif msg_type == TYPE_FINISH:
+                response = self.__handle_finish(agency)
+            elif msg_type == TYPE_ASK_WINNERS:
+                response = self.__handle_winners(agency)
         except json.decoder.JSONDecodeError:
             logging.error(
                 "action: receive_message | result: fail | "
@@ -171,15 +200,6 @@ class Server:
             response = {
                 "success": False,
                 "error": "Malformed message"
-            }
-        except TooLongException:
-            logging.error(
-                'action: receive_message | result: fail | '
-                'error: Message exceeded maximum length'
-            )
-            response = {
-                "success": False,
-                "error": "Message exceeded maximum length"
             }
         except Exception as e:
             logging.error(
