@@ -44,9 +44,9 @@ Una vez hecho eso, modfiqué tanto el cliente como el servidor para que se dispa
 
 > Modificar la lógica de negocio tanto de los clientes como del servidor para nuestro nuevo caso de uso. [...]
 
-Para este ejercicio pensé que una forma sencilla y confiable de transmitir los datos sería serializarlos en forma de JSON. Esto me permite recuperar fácilmente un objeto del otro lado de la comunicación. En principio, todos los datos de la apuesta se encuentran en la raíz del objeto, pero para el siguiente ejercicio será muy fácil modificarlo para que soporte varias apuestas.
+~~Para este ejercicio pensé que una forma sencilla y confiable de transmitir los datos sería serializarlos en forma de JSON. Esto me permite recuperar fácilmente un objeto del otro lado de la comunicación. En principio, todos los datos de la apuesta se encuentran en la raíz del objeto, pero para el siguiente ejercicio será muy fácil modificarlo para que soporte varias apuestas.~~
 
-El protocolo que utilizo para la comunicación es un número codificado en 2 bytes, que indica el tamaño del resto del mensaje, seguido de la serialización del JSON codificada en UTF-8. Con este protocolo logro evitar los _short reads_ ya que siempre sé exactamente cuántos bytes tengo que leer.
+~~El protocolo que utilizo para la comunicación es un número codificado en 2 bytes, que indica el tamaño del resto del mensaje, seguido de la serialización del JSON codificada en UTF-8. Con este protocolo logro evitar los _short reads_ ya que siempre sé exactamente cuántos bytes tengo que leer.~~
 
 También, para evitar los _short writes_, remplacé los `send` por `sendall`, que se encarga de reintentar el envío en caso de ser necesario o devolver un error cuando no sea posible.
 
@@ -54,7 +54,7 @@ También, para evitar los _short writes_, remplacé los `send` por `sendall`, qu
 
 > Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). La información de cada agencia será simulada por la ingesta de su archivo numerado correspondiente, provisto por la cátedra dentro de `.data/datasets.zip`.
 
-Lo primero que hice fue modificar el Dockerfile del cliente para que las imágenes tengan los archivos de datos de las apuestas. También modfiqué el protocolo de comunicación. Ahora en la raíz del objeto JSON se envía el código de agencia y una lista con todas las apuestas.
+Lo primero que hice fue modificar el Dockerfile del cliente para que las imágenes tengan los archivos de datos de las apuestas. ~~También modfiqué el protocolo de comunicación. Ahora en la raíz del objeto JSON se envía el código de agencia y una lista con todas las apuestas.~~
 
 La cantidad de apuestas a enviar por mensaje es configurable por el archivo de configuración o por variable de entorno. De todas formas, si se detecta que los mensajes son demasiado largos con la cantidad de apuestas establecidas, este número bajará un 5% hasta que el mensaje se puede enviar correctamente.
 
@@ -71,3 +71,31 @@ Una desición que tuve que tomar fue qué hacer cuando el cliente solicita la li
 > Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. [...]
 
 Para este último ejercicio utilicé la librería `threading` de Python, que ofrece varias herramientas útiles. Por cada nueva conexión se lanza un _thread_ nuevo, que será el encargado de manejar ese cliente. Para evitar que se desplieguen miles de _threads_ simultáneamente, usé un semáforo que define la cantidad máxima de _threads_ que pueden haber, la cual se establece en el archivo de configuración. Además, para evitar accesos simulatáneos de lectura o escritura al archivo de apuestas, utilicé un _Lock_ (_Mutex_) que debe ser adquirido por cada hilo antes de acceder al archivo.
+
+## Protocolo
+
+El protocolo sigue el modelo TLV aunque con una modificación menor. Para los mensajes que envía el cliente, el protocolo se basa en 1 byte para el tipo, 1 byte para el número de agencia y 2 bytes para el largo del cuerpo del mensaje. El cuerpo del mensaje y su largo se envían únicamente si el mensaje es para enviar apuestas. Si es para indicar la finalización de envío o preguntar los ganadores, estos no se envían.
+
+Entonces, el esquema general del mensaje es: `[TYPE][AGENCY_NUMBER][LENGTH][MESSAGE]`
+
+Los tipos disponibles son:
+- `TYPE_BETS = 1`
+- `TYPE_FINISH = 2`
+- `TYPE_ASK_WINNERS = 4`
+- `TYPE_RESPONSE_ERROR = 8`
+- `TYPE_RESPONSE_SUCCESS = 9`
+
+Por ejemplo, para indicar la finalización del envío de apuestas del cliente 1, se envía `0x0201`.
+
+La serialización de las apuestas se basa en codificar todos los campos ordenadamente en UTF-8 y concatenarlos con un byte nulo. Para separar apuestas se usa un caracter `\n`. Entonces, por ejemplo, para enviar 2 apuestas con los siguientes campos desde el cliente 1:
+
+|Nombre|Apellido|Documento|Nacimiento|Número|
+|------|--------|---------|----------|------|
+|Manuel|Bilbao|102732|1998-09-01|294|
+|Juan|Perez|111111|2000-01-01|324|
+
+Se codifica `0x010144004d616e75656c0042696c62616f0031303237333200313939382d30392d3031003239340a4a75616e00506572657a0031313131313100323030302d30312d303100333234`. Esto es, `[TYPE_BETS][AGENCIA_1][LARGO][NOMBRE1]\0[APELLIDO1]\0[DOCUMETO1]\0[NACIMIENTO1]\0[NUMERO1]\n[NOMBRE2]\0[APELLIDO2]\0[DOCUMENTO2]\0[NACIMIENTO2]\0[NUMERO2]`.
+
+Para las respuestas del servidor, se hace algo parecido. Se utilizan los tipos `RESPONSE` y su composición es el tipo seguido del largo del cuerpo y el cuerpo.
+
+Por ejemplo, para responder la cantidad de apuestas registradas, se envía `[TYPE_RESPONSE_SUCCESS][LARGO][NUMERO]`, con el número codificado en UTF-8. En los casos de error el cuerpo del mensaje es el mensaje de error. Para enviar las apuestas ganadoras, se codifican los documentos en UTF-8, se concatenan con bytes nulos y eso se envía en el cuerpo del mensaje.
